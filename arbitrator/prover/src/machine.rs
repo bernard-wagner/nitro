@@ -334,8 +334,9 @@ lazy_static! {
     static ref USER_IMPORTS: HashMap<String, AvailableImport> = {
         let mut imports = HashMap::default();
 
-        let forward = include_bytes!("../../../target/machines/latest/forward_stub.wasm");
-        let forward = binary::parse(forward, Path::new("forward")).unwrap();
+        let data = include_bytes!("forward.wat");
+        let wasm = wat::parse_bytes(data).expect("failed to parse forward.wat");
+        let forward = binary::parse(&wasm, Path::new("internal")).expect("failed to parse forward.wasm");
 
         for (name, &(export, kind)) in &forward.exports {
             if kind == ExportKind::Func {
