@@ -25,3 +25,4 @@ sha2 = "0.9.9"
 
 [features]
 llvm = ["dep:wasmer-compiler-llvm"]
+rust_brotli = ["brotli/rust_brotli", "prover/rust_brotli", "stylus/rust_brotli", "caller-env/rust_brotli"]

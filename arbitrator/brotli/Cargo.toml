@@ -13,9 +13,11 @@ lazy_static.workspace = true
 num_enum.workspace = true
 wasmer = { path = "../tools/wasmer/lib/api", optional = true }
 wee_alloc.workspace = true
+rust-brotli = { package = "brotli", version = "8.0.1",  default-features = false, features = ["std"], optional = true}
 
 [lib]
 crate-type = ["lib"]
 
 [features]
+rust_brotli = ["dep:rust-brotli"]
 wasmer_traits = ["dep:wasmer"]

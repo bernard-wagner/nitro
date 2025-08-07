@@ -1,54 +1,62 @@
 // Copyright 2024, Offchain Labs, Inc.
 // For license information, see https://github.com/OffchainLabs/nitro/blob/master/LICENSE.md
 
-use crate::{
-    types::BrotliSharedDictionaryType, BrotliStatus, CustomAllocator, EncoderPreparedDictionary,
-    HeapItem,
-};
-use core::{ffi::c_int, ptr};
-use lazy_static::lazy_static;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-extern "C" {
-    /// Prepares an LZ77 dictionary for use during compression.
-    fn BrotliEncoderPrepareDictionary(
-        dict_type: BrotliSharedDictionaryType,
-        dict_len: c_int,
-        dictionary: *const u8,
-        quality: c_int,
-        alloc: Option<extern "C" fn(opaque: *const CustomAllocator, size: usize) -> *mut HeapItem>,
-        free: Option<extern "C" fn(opaque: *const CustomAllocator, address: *mut HeapItem)>,
-        opaque: *mut CustomAllocator,
-    ) -> *mut EncoderPreparedDictionary;
+#[cfg(not(feature = "rust_brotli"))]
+use crate::{BrotliStatus, EncoderPreparedDictionary};
 
-    /// Nonzero when valid.
-    fn BrotliEncoderGetPreparedDictionarySize(
-        dictionary: *const EncoderPreparedDictionary,
-    ) -> usize;
-}
+#[cfg(not(feature = "rust_brotli"))]
+mod native {
+    use crate::{
+        types::BrotliSharedDictionaryType, CustomAllocator, Dictionary, EncoderPreparedDictionary,
+        HeapItem,
+    };
+    use core::{ffi::c_int, ptr};
+    use lazy_static::lazy_static;
+    extern "C" {
+        /// Prepares an LZ77 dictionary for use during compression.
+        fn BrotliEncoderPrepareDictionary(
+            dict_type: BrotliSharedDictionaryType,
+            dict_len: c_int,
+            dictionary: *const u8,
+            quality: c_int,
+            alloc: Option<
+                extern "C" fn(opaque: *const CustomAllocator, size: usize) -> *mut HeapItem,
+            >,
+            free: Option<extern "C" fn(opaque: *const CustomAllocator, address: *mut HeapItem)>,
+            opaque: *mut CustomAllocator,
+        ) -> *mut EncoderPreparedDictionary;
 
-/// Forces a type to implement [`Sync`].
-struct ForceSync<T>(T);
+        /// Nonzero when valid.
+        fn BrotliEncoderGetPreparedDictionarySize(
+            dictionary: *const EncoderPreparedDictionary,
+        ) -> usize;
+    }
 
-unsafe impl<T> Sync for ForceSync<T> {}
+    /// Forces a type to implement [`Sync`].
+    pub(super) struct ForceSync<T>(pub T);
 
-lazy_static! {
-    /// Memoizes dictionary preperation.
-    static ref STYLUS_PROGRAM_DICT: ForceSync<*const EncoderPreparedDictionary> =
-        ForceSync(unsafe {
-            let data = Dictionary::StylusProgram.slice().unwrap();
-            let dict = BrotliEncoderPrepareDictionary(
-                BrotliSharedDictionaryType::Raw,
-                data.len() as c_int,
-                data.as_ptr(),
-                11,
-                None,
-                None,
-                ptr::null_mut(),
-            );
-            assert!(BrotliEncoderGetPreparedDictionarySize(dict) > 0); // check integrity
-            dict as _
-        });
+    unsafe impl<T> Sync for ForceSync<T> {}
+
+    lazy_static! {
+        /// Memoizes dictionary preperation.
+        pub(super) static ref STYLUS_PROGRAM_DICT: ForceSync<*const EncoderPreparedDictionary> =
+            ForceSync(unsafe {
+                let data = Dictionary::StylusProgram.slice().unwrap();
+                let dict = BrotliEncoderPrepareDictionary(
+                    BrotliSharedDictionaryType::Raw,
+                    data.len() as c_int,
+                    data.as_ptr(),
+                    11,
+                    None,
+                    None,
+                    ptr::null_mut(),
+                );
+                assert!(BrotliEncoderGetPreparedDictionarySize(dict) > 0); // check integrity
+                dict as _
+            });
+    }
 }
 
 /// Brotli dictionary selection.
@@ -70,10 +78,13 @@ impl Dictionary {
 
     /// Returns a pointer to a compression-ready instance of the given dictionary.
     /// Note: this function fails when the specified level doesn't match.
+    #[cfg(not(feature = "rust_brotli"))]
     pub fn ptr(
         &self,
         level: u32,
     ) -> Result<Option<*const EncoderPreparedDictionary>, BrotliStatus> {
+        use crate::dicts::native::STYLUS_PROGRAM_DICT;
+
         Ok(match self {
             Self::StylusProgram if level == 11 => Some(STYLUS_PROGRAM_DICT.0),
             Self::StylusProgram => return Err(BrotliStatus::Failure),
