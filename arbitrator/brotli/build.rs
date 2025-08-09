@@ -7,9 +7,6 @@ use std::path::PathBuf;
 fn main() {
     let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let include_dir = manifest_dir.join("../../brotli/c/include");
-    let wasi_sysroot = env::var_os("WASI_SYSROOT").map(PathBuf::from).unwrap_or_else(|| {
-        panic!("WASI_SYSROOT environment variable is not set. Please set it to the path of your WASI sysroot.");
-    });
     cc::Build::new()
         .files(&[
             "../../brotli/c/common/constants.c",
@@ -44,7 +41,7 @@ fn main() {
             "../../brotli/c/enc/static_dict.c",
             "../../brotli/c/enc/utf8_util.c",
         ])
-        .includes(["../../brotli/c/include", wasi_sysroot.to_str().unwrap()])
+        .includes(["../../brotli/c/include"])
         .define("BROTLI_BUILD_ENC_EXTRA_API", None)
         .define("BROTLI_HAVE_LOG2", "1")
         .warnings(false)
