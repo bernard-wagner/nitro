@@ -14,6 +14,15 @@ num_enum.workspace = true
 wasmer = { path = "../tools/wasmer/lib/api", optional = true }
 wee_alloc.workspace = true
 
+[target.wasm32-wasip1]
+linker = "wasm-ld"
+
+[target.wasm32-unknown-unknown]
+linker = "wasm-ld"
+
+[build-dependencies]
+cc = "1.0"
+
 [lib]
 crate-type = ["lib"]
 
