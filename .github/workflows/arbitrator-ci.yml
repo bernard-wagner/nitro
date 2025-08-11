@@ -128,6 +128,23 @@ jobs:
         with:
           cache: false
 
+      - name: Cache cbrotli
+        uses: actions/cache@v4
+        id: cache-cbrotli
+        with:
+          path: |
+            target/include/brotli/
+            target/lib-wasm/
+            target/lib/libbrotlicommon-static.a
+            target/lib/libbrotlienc-static.a
+            target/lib/libbrotlidec-static.a
+          key: ${{ runner.os }}-brotli-${{ hashFiles('scripts/build-brotli.sh') }}-${{ hashFiles('.github/workflows/arbitrator-ci.yaml') }}-arbitrator
+          restore-keys: ${{ runner.os }}-brotli-${{ hashFiles('scripts/build-brotli.sh') }}-${{ hashFiles('.github/workflows/arbitrator-ci.yaml') }}
+
+      - name: Build cbrotli-local
+        if: steps.cache-cbrotli.outputs.cache-hit != 'true'
+        run: ./scripts/build-brotli.sh -l
+
       - name: Setup emsdk
         if: steps.cache-cbrotli.outputs.cache-hit != 'true'
         uses: mymindstorm/setup-emsdk@v12
@@ -138,6 +155,10 @@ jobs:
           # The cache folder will be placed in the build directory,
           #  so make sure it doesn't conflict with anything!
           no-cache: true
+
+      - name: Build cbrotli-wasm
+        if: steps.cache-cbrotli.outputs.cache-hit != 'true'
+        run: ./scripts/build-brotli.sh -w
 
       - name: Add wabt to path
         run: echo "$HOME/wabt-prefix/bin" >> "$GITHUB_PATH"
