@@ -57,6 +57,8 @@ done = "%bdone!%b\n" $(color_pink) $(color_reset)
 
 replay_wasm=$(output_latest)/replay.wasm
 
+arb_brotli_files = $(wildcard arbitrator/brotli/src/*.* arbitrator/brotli/src/*/*.* arbitrator/brotli/*.toml arbitrator/brotli/*.rs) .make/cbrotli-lib .make/cbrotli-wasm
+
 arbitrator_generated_header=$(output_root)/include/arbitrator.h
 arbitrator_wasm_libs=$(patsubst %, $(output_root)/machines/latest/%.wasm, forward wasi_stub host_io soft-float arbcompress user_host program_exec)
 arbitrator_stylus_lib=$(output_root)/lib/libstylus.a
@@ -80,15 +82,15 @@ WASI_SYSROOT?=/opt/wasi-sdk/wasi-sysroot
 
 arbitrator_wasm_lib_flags=$(patsubst %, -l %, $(arbitrator_wasm_libs))
 
-rust_arbutil_files = $(wildcard arbitrator/arbutil/src/*.* arbitrator/arbutil/src/*/*.* arbitrator/arbutil/*.toml arbitrator/caller-env/src/*.* arbitrator/caller-env/src/*/*.* arbitrator/caller-env/*.toml)
+rust_arbutil_files = $(wildcard arbitrator/arbutil/src/*.* arbitrator/arbutil/src/*/*.* arbitrator/arbutil/*.toml arbitrator/caller-env/src/*.* arbitrator/caller-env/src/*/*.* arbitrator/caller-env/*.toml) .make/cbrotli-lib
 
 prover_direct_includes = $(patsubst %,$(output_latest)/%.wasm, forward forward_stub)
 prover_dir = arbitrator/prover/
-rust_prover_files = $(wildcard $(prover_dir)/src/*.* $(prover_dir)/src/*/*.* $(prover_dir)/*.toml $(prover_dir)/*.rs) $(rust_arbutil_files) $(prover_direct_includes)
+rust_prover_files = $(wildcard $(prover_dir)/src/*.* $(prover_dir)/src/*/*.* $(prover_dir)/*.toml $(prover_dir)/*.rs) $(rust_arbutil_files) $(prover_direct_includes) $(arb_brotli_files)
 
 wasm_lib = arbitrator/wasm-libraries
 wasm_lib_cargo = $(wasm_lib)/.cargo/config.toml
-wasm_lib_deps = $(wildcard $(wasm_lib)/$(1)/*.toml $(wasm_lib)/$(1)/src/*.rs $(wasm_lib)/$(1)/*.rs) $(wasm_lib_cargo) $(rust_arbutil_files)  .make/machines
+wasm_lib_deps = $(wildcard $(wasm_lib)/$(1)/*.toml $(wasm_lib)/$(1)/src/*.rs $(wasm_lib)/$(1)/*.rs) $(wasm_lib_cargo) $(rust_arbutil_files) $(arb_brotli_files) .make/machines
 wasm_lib_go_abi = $(call wasm_lib_deps,go-abi)
 wasm_lib_forward = $(call wasm_lib_deps,forward)
 wasm_lib_user_host_trait = $(call wasm_lib_deps,user-host-trait)
@@ -153,6 +155,8 @@ stylus_test_hostio-test_src       = $(call get_stylus_test_rust,hostio-test)
 stylus_test_wasms = $(stylus_test_keccak_wasm) $(stylus_test_keccak-100_wasm) $(stylus_test_fallible_wasm) $(stylus_test_storage_wasm) $(stylus_test_multicall_wasm) $(stylus_test_log_wasm) $(stylus_test_create_wasm) $(stylus_test_math_wasm) $(stylus_test_sdk-storage_wasm) $(stylus_test_erc20_wasm) $(stylus_test_read-return-data_wasm) $(stylus_test_evm-data_wasm) $(stylus_test_hostio-test_wasm) $(stylus_test_bfs:.b=.wasm)
 stylus_benchmarks = $(wildcard $(stylus_dir)/*.toml $(stylus_dir)/src/*.rs) $(stylus_test_wasms)
 
+CBROTLI_WASM_BUILD_ARGS ?=-d
+
 # user targets
 
 .PHONY: push
@@ -169,7 +173,7 @@ build: $(patsubst %,$(output_root)/bin/%, nitro deploy relay daprovider daserver
 	@printf $(done)
 
 .PHONY: build-node-deps
-build-node-deps: $(go_source) build-prover-header build-prover-lib build-jit .make/solgen
+build-node-deps: $(go_source) build-prover-header build-prover-lib build-jit .make/solgen .make/cbrotli-lib
 
 .PHONY: test-go-deps
 test-go-deps: \
@@ -289,6 +293,7 @@ clean:
 	rm -f arbitrator/wasm-libraries/soft-float/SoftFloat/build/Wasm-Clang/*.a
 	rm -f arbitrator/wasm-libraries/forward/*.wat
 	rm -rf arbitrator/stylus/tests/*/target/ arbitrator/stylus/tests/*/*.wasm
+	rm -rf brotli/buildfiles
 	@rm -rf contracts/build contracts/cache solgen/go/
 	@rm -rf contracts-legacy/build contracts-legacy/cache
 	@rm -rf contracts-local/out contracts-local/forge-cache
@@ -444,7 +449,7 @@ $(output_latest)/user_test.wasm: $(DEP_PREDICATE) $(call wasm_lib_deps,user-test
 	install arbitrator/wasm-libraries/$(wasm32_wasi)/user_test.wasm $@
 	./scripts/remove_reference_types.sh $@
 
-$(output_latest)/arbcompress.wasm: $(DEP_PREDICATE) $(call wasm_lib_deps) $(wasm_lib_go_abi)
+$(output_latest)/arbcompress.wasm: $(DEP_PREDICATE) $(call wasm_lib_deps,brotli) $(wasm_lib_go_abi)
 	cargo build --manifest-path arbitrator/wasm-libraries/Cargo.toml --release --target wasm32-wasip1 --config $(wasm_lib_cargo) --package arbcompress
 	install arbitrator/wasm-libraries/$(wasm32_wasi)/arbcompress.wasm $@
 	./scripts/remove_reference_types.sh $@
@@ -618,9 +623,23 @@ contracts/test/prover/proofs/%.json: $(arbitrator_cases)/%.wasm $(prover_bin)
 	make -C contracts-local install
 	@touch $@
 
+.make/cbrotli-lib: $(DEP_PREDICATE) $(ORDER_ONLY_PREDICATE) .make
+	test -f target/include/brotli/encode.h || ./scripts/build-brotli.sh -l
+	test -f target/include/brotli/decode.h || ./scripts/build-brotli.sh -l
+	test -f target/lib/libbrotlicommon-static.a || ./scripts/build-brotli.sh -l
+	test -f target/lib/libbrotlienc-static.a || ./scripts/build-brotli.sh -l
+	test -f target/lib/libbrotlidec-static.a || ./scripts/build-brotli.sh -l
+	@touch $@
+
+.make/cbrotli-wasm: $(DEP_PREDICATE) $(ORDER_ONLY_PREDICATE) .make
+	test -f target/lib-wasm/libbrotlicommon-static.a || ./scripts/build-brotli.sh -w $(CBROTLI_WASM_BUILD_ARGS)
+	test -f target/lib-wasm/libbrotlienc-static.a || ./scripts/build-brotli.sh -w $(CBROTLI_WASM_BUILD_ARGS)
+	test -f target/lib-wasm/libbrotlidec-static.a || ./scripts/build-brotli.sh -w $(CBROTLI_WASM_BUILD_ARGS)
+	@touch $@
+
 .make/wasm-lib: $(DEP_PREDICATE) arbitrator/wasm-libraries/soft-float/SoftFloat/build/Wasm-Clang/softfloat.a  $(ORDER_ONLY_PREDICATE) .make
-	test -f arbitrator/wasm-libraries/soft-float/bindings32.o
-	test -f arbitrator/wasm-libraries/soft-float/bindings64.o
+	test -f arbitrator/wasm-libraries/soft-float/bindings32.o || ./scripts/build-brotli.sh -f -d -t ..
+	test -f arbitrator/wasm-libraries/soft-float/bindings64.o || ./scripts/build-brotli.sh -f -d -t ..
 	@touch $@
 
 .make/machines: $(DEP_PREDICATE) $(ORDER_ONLY_PREDICATE) .make

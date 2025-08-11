@@ -43,7 +43,6 @@ RUN . ~/.bashrc && NITRO_BUILD_IGNORE_TIMESTAMPS=1 make build-solidity
 
 FROM debian:bookworm-20231218 AS wasm-base
 WORKDIR /workspace
-COPY brotli brotli
 RUN apt-get update && apt-get install -y curl build-essential=12.9
 
 FROM wasm-base AS wasm-libs-builder
@@ -52,9 +51,6 @@ RUN apt-get update && \
     apt-get install -y clang=1:14.0-55.7~deb12u1 lld=1:14.0-55.7~deb12u1 wabt
     # pinned rust 1.84.1
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.84.1 --target x86_64-unknown-linux-gnu,wasm32-unknown-unknown,wasm32-wasip1
-RUN mkdir -p /opt/wasi-sdk/wasi-sysroot && \
-    curl --proto '=https' --tlsv1.2 -sSf -L https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-27/wasi-sysroot-27.0.tar.gz | \
-    tar -C /opt/wasi-sdk/wasi-sysroot -xzf - --strip-components=1
 COPY ./Makefile ./
 COPY arbitrator/Cargo.* arbitrator/
 COPY arbitrator/arbutil arbitrator/arbutil
@@ -63,11 +59,12 @@ COPY arbitrator/caller-env arbitrator/caller-env
 COPY arbitrator/prover arbitrator/prover
 COPY arbitrator/wasm-libraries arbitrator/wasm-libraries
 COPY arbitrator/tools/wasmer arbitrator/tools/wasmer
+COPY brotli brotli
 COPY scripts/build-brotli.sh scripts/
 COPY scripts/remove_reference_types.sh scripts/
 COPY --from=brotli-wasm-export / target/
 RUN apt-get update && apt-get install -y cmake
-RUN . ~/.cargo/env && NITRO_BUILD_IGNORE_TIMESTAMPS=1 WASI_SYSROOT=/opt/wasi-sdk/wasi-sysroot RUSTFLAGS='-C symbol-mangling-version=v0' make build-wasm-libs
+RUN . ~/.cargo/env && NITRO_BUILD_IGNORE_TIMESTAMPS=1 RUSTFLAGS='-C symbol-mangling-version=v0' make build-wasm-libs
 
 FROM scratch AS wasm-libs-export
 COPY --from=wasm-libs-builder /workspace/ /
@@ -148,7 +145,6 @@ RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - && \
     apt-get update && \
     apt-get install -y llvm-15-dev libclang-common-15-dev
 COPY --from=brotli-library-export / target/
-COPY brotli brotli
 COPY arbitrator/Cargo.* arbitrator/
 COPY arbitrator/arbutil arbitrator/arbutil
 COPY arbitrator/bench arbitrator/bench

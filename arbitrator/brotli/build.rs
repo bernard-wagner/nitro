@@ -1,10 +1,26 @@
 // Copyright 2021-2024, Offchain Labs, Inc.
 // For license information, see https://github.com/OffchainLabs/nitro/blob/master/LICENSE.md
-
-use std::env;
-use std::path::PathBuf;
-
+#[cfg(not(feature = "cc_brotli"))]
 fn main() {
+    use std::env;
+
+    let target_arch = env::var("TARGET").unwrap();
+
+    if target_arch.contains("wasm32") {
+        println!("cargo:rustc-link-search=../../target/lib-wasm/");
+    } else {
+        println!("cargo:rustc-link-search=../target/lib/");
+        println!("cargo:rustc-link-search=../../target/lib/");
+    }
+    println!("cargo:rustc-link-lib=static=brotlienc-static");
+    println!("cargo:rustc-link-lib=static=brotlidec-static");
+    println!("cargo:rustc-link-lib=static=brotlicommon-static");
+}
+
+#[cfg(feature = "cc_brotli")]
+fn main() {
+    use std::env;
+    use std::path::PathBuf;
     let manifest_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let include_dir = manifest_dir.join("../../brotli/c/include");
     cc::Build::new()
