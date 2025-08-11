@@ -1,5 +1,0 @@
-[target.wasm32-wasip1]
-linker = "wasm-ld"
-
-[target.wasm32-unknown-unknown]
-linker = "wasm-ld"
