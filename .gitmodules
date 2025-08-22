@@ -16,7 +16,8 @@
 	url = https://github.com/WebAssembly/testsuite.git
 [submodule "arbitrator/tools/wasmer"]
 	path = arbitrator/tools/wasmer
-	url = git@github.com:bernard-wagner/wasmer.git
+	url = https://github.com/bernard-wagner/wasmer.git
+	branch = dev
 [submodule "nitro-testnode"]
 	path = nitro-testnode
 	url = https://github.com/OffchainLabs/nitro-testnode.git
