@@ -36,6 +36,9 @@ mod evm_api;
 mod target_cache;
 mod util;
 
+// re-export wasmer
+pub use wasmer;
+
 #[cfg(test)]
 mod test;
 
