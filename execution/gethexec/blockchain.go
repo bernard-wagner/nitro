@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	flag "github.com/spf13/pflag"
+	"github.com/spf13/pflag"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -47,7 +47,7 @@ type CachingConfig struct {
 	EnablePreimages                     bool          `koanf:"enable-preimages"`
 }
 
-func CachingConfigAddOptions(prefix string, f *flag.FlagSet) {
+func CachingConfigAddOptions(prefix string, f *pflag.FlagSet) {
 	f.Bool(prefix+".archive", DefaultCachingConfig.Archive, "retain past block state")
 	f.Uint64(prefix+".block-count", DefaultCachingConfig.BlockCount, "minimum number of recent blocks to keep in memory")
 	f.Duration(prefix+".block-age", DefaultCachingConfig.BlockAge, "minimum age of recent blocks to keep in memory")
@@ -208,11 +208,11 @@ func WriteOrTestChainConfig(chainDb ethdb.Database, config *params.ChainConfig) 
 		rawdb.WriteChainConfig(chainDb, block0Hash, config)
 		return nil
 	}
-	height := rawdb.ReadHeaderNumber(chainDb, rawdb.ReadHeadHeaderHash(chainDb))
-	if height == nil {
+	height, found := rawdb.ReadHeaderNumber(chainDb, rawdb.ReadHeadHeaderHash(chainDb))
+	if !found {
 		return errors.New("non empty chain config but empty chain")
 	}
-	err := storedConfig.CheckCompatible(config, *height, 0)
+	err := storedConfig.CheckCompatible(config, height, 0)
 	if err != nil {
 		return err
 	}
