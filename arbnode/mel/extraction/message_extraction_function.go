@@ -51,7 +51,7 @@ func ExtractMessages(
 	ctx context.Context,
 	inputState *mel.State,
 	parentChainHeader *types.Header,
-	dataProviders []daprovider.Reader,
+	dataProviders *daprovider.ReaderRegistry,
 	delayedMsgDatabase DelayedMessageDatabase,
 	receiptFetcher ReceiptFetcher,
 	txsFetcher TransactionsFetcher,
@@ -81,7 +81,7 @@ func extractMessagesImpl(
 	ctx context.Context,
 	inputState *mel.State,
 	parentChainHeader *types.Header,
-	dataProviders []daprovider.Reader,
+	dataProviders *daprovider.ReaderRegistry,
 	delayedMsgDatabase DelayedMessageDatabase,
 	txsFetcher TransactionsFetcher,
 	receiptFetcher ReceiptFetcher,
@@ -100,7 +100,7 @@ func extractMessagesImpl(
 	if state.ParentChainBlockHash != parentChainHeader.ParentHash {
 		return nil, nil, nil, fmt.Errorf(
 			"parent chain block hash in MEL state does not match incoming block's parent hash: expected %s, got %s",
-			state.ParentChainPreviousBlockHash.Hex(),
+			state.ParentChainBlockHash.Hex(),
 			parentChainHeader.ParentHash.Hex(),
 		)
 	}
